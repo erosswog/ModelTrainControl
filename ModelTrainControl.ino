@@ -1,9 +1,10 @@
 #include "types.h"
 
-const int POWER_PIN = 10;
+const int PWM_PIN = 3;
+const int PWM_50_PER_PIN = 11;
 const int PLUS_PIN = 8;
 const int MINUS_PIN = 9;
-const int MAX_POWER = 255;
+const int MAX_POWER = 62;
 const int MIN_POWER = 0;  
 const float MAX_PERCENT = 100.0f;
 const float MIN_PERCENT = 0.0f;
@@ -21,13 +22,17 @@ unsigned long cycleCount = 0;
 
 void setup() 
 {
-  // set timer divisor to 1 for PWM Freq of 3906.25 Hz
-  //TCCR1B = TCCR1B & B11111000 | B00000001;
   Serial.begin(9600); 
-
-  pinMode(POWER_PIN, OUTPUT);
+  pinMode(PWM_PIN, OUTPUT);
+  pinMode(PWM_50_PER_PIN, OUTPUT);
   pinMode(PLUS_PIN, OUTPUT);
   pinMode(MINUS_PIN, OUTPUT);
+  
+  // Setup Pin 3 for PWM at 2KHz
+  TCCR2A = _BV(COM2A0) | _BV(COM2B1) | _BV(WGM20);
+  TCCR2B = _BV(CS22);
+  OCR2A = MAX_POWER;
+  OCR2B = 0;
 }
 
 void loop() 
@@ -205,7 +210,8 @@ void setTrackPower(int trackPower)
   char buf[100];
   sprintf(buf, "Setting Power Pin to: %d...", power);
   Serial.println(buf);
-  analogWrite(POWER_PIN, power); 
+  //analogWrite(PWM_PIN, power); 
+  OCR2B = power;
 }
 
 void setTrackDirection(track_direction_t trackDir)

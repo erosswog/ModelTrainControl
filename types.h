@@ -17,4 +17,10 @@ enum track_direction_t
   TRACK_DIR_TWO
 };
 
+enum switch_position_t
+{
+  SWITCH_POSITION_NONE,
+  SWITCH_POSITION_STRAIGHT,
+  SWITCH_POSITION_TURNOUT
+};
 #endif

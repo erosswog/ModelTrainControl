@@ -1,6 +1,8 @@
 #include "types.h"
 
-const int POWER_PIN = 10;
+const int PWM_PIN = 10;
+const int SWITCH_PLUS_PIN = 4;
+const int SWITCH_MINUS_PIN = 5;
 const int PLUS_PIN = 8;
 const int MINUS_PIN = 9;
 const int MAX_POWER = 255;
@@ -8,7 +10,8 @@ const int MIN_POWER = 0;
 const float MAX_PERCENT = 100.0f;
 const float MIN_PERCENT = 0.0f;
 const int CHAR_OFFSET = 48;
-const unsigned long SPEED_CHANGE_INTERVAL = 250;
+const unsigned long SPEED_CHANGE_INTERVAL = 250; // ms - how fast to change speed by 1 percent
+const unsigned long SWITCH_ACTIVE_TIME = 200; // keep switch settings active for only 200ms
 
 int currentPowerPercent = 0;
 int requestedPowerPercent = 0;
@@ -16,26 +19,25 @@ track_direction_t trackDirection = TRACK_DIR_NONE;
 track_direction_t requestedTrackDirection = TRACK_DIR_NONE;
 request_status_t requestStatus = REQUEST_STATUS_NONE;
 unsigned long triggerTime = 0;
+unsigned long switchResetTime = 0;
 int speedChangeValue = 0;
 unsigned long cycleCount = 0;
+switch_position_t switchPosition = SWITCH_POSITION_STRAIGHT;
 
 void setup() 
 {
-  // set timer divisor to 1 for PWM Freq of 3906.25 Hz
-  //TCCR1B = TCCR1B & B11111000 | B00000001;
   Serial.begin(9600); 
-
-  pinMode(POWER_PIN, OUTPUT);
+  pinMode(PWM_PIN, OUTPUT);
   pinMode(PLUS_PIN, OUTPUT);
   pinMode(MINUS_PIN, OUTPUT);
+  pinMode(SWITCH_PLUS_PIN, OUTPUT);
+  pinMode(SWITCH_MINUS_PIN, OUTPUT);
+
+  setSwitchPosition(SWITCH_POSITION_STRAIGHT);  
 }
 
 void loop() 
-{
-  //char buf[50];
-  //sprintf(buf, "cycle: %d", cycleCount++);
-  //Serial.println(buf);
-  
+{  
   // Check for serial input
   int incomingByte = 0;
   if (Serial.available() > 0)
@@ -49,7 +51,7 @@ void loop()
       Serial.println("x received, setting status to ready...");
       requestStatus = REQUEST_STATUS_READY;
     }
-    else if (newByte == 's' || newByte == 'S')
+    else if (newByte == 'e' || newByte == 'E')
     {
       Serial.println("s received, setting status to emergency stop...");
       requestStatus = REQUEST_STATUS_EMERGENCY_STOP;
@@ -93,6 +95,16 @@ void loop()
         Serial.println("minus received, already at DIR_ONE, setting status to none...");
         requestStatus = REQUEST_STATUS_NONE;
       }
+    }
+    else if (newByte == 'T' || newByte == 't')
+    {
+      Serial.println("Switch turnout command received...");
+      setSwitchPosition(SWITCH_POSITION_TURNOUT);
+    }
+    else if (newByte == 'S' || newByte == 's')
+    {
+      Serial.println("Switch straight command received...");
+      setSwitchPosition(SWITCH_POSITION_STRAIGHT);
     }
   }
 
@@ -172,6 +184,14 @@ void loop()
   {
     //Serial.println("DEFAULT");
   }
+
+  // Handle any switch movement if necessary
+  unsigned long currentTime = millis();
+  if (currentTime > switchResetTime && switchPosition != SWITCH_POSITION_NONE)
+  {
+    Serial.println("Resetting switch position to NONE...");
+    setSwitchPosition(SWITCH_POSITION_NONE);
+  }
 }
 
 // Convert percentage to a power output
@@ -205,7 +225,8 @@ void setTrackPower(int trackPower)
   char buf[100];
   sprintf(buf, "Setting Power Pin to: %d...", power);
   Serial.println(buf);
-  analogWrite(POWER_PIN, power); 
+  analogWrite(PWM_PIN, power); 
+  //OCR2B = power;
 }
 
 void setTrackDirection(track_direction_t trackDir)
@@ -227,6 +248,34 @@ void setTrackDirection(track_direction_t trackDir)
       Serial.println("Setting direction to TRACK_DIR_NONE");
       digitalWrite(PLUS_PIN, LOW);
       digitalWrite(MINUS_PIN, LOW);
+      break;
+  };
+}
+
+void setSwitchPosition(switch_position_t position)
+{
+  // set the pins here for moving the switch
+  switch (position)
+  {
+    case SWITCH_POSITION_STRAIGHT:
+      // set the pins accordingly
+      Serial.println("Setting pins for switch to STRAIGHT...");
+      digitalWrite(SWITCH_PLUS_PIN, HIGH);
+      digitalWrite(SWITCH_MINUS_PIN, LOW);
+      switchPosition = SWITCH_POSITION_STRAIGHT;
+      break;
+    case SWITCH_POSITION_TURNOUT:
+      Serial.println("Setting pins for switch to TURNOUT...");
+      digitalWrite(SWITCH_PLUS_PIN, LOW);
+      digitalWrite(SWITCH_MINUS_PIN, HIGH);
+      switchPosition = SWITCH_POSITION_TURNOUT;
+      break;
+    case SWITCH_POSITION_NONE:
+    default:
+      Serial.println("Setting pins for switch to NONE...");
+      digitalWrite(SWITCH_PLUS_PIN, LOW);
+      digitalWrite(SWITCH_MINUS_PIN, LOW);
+      switchPosition = SWITCH_POSITION_NONE;
       break;
   };
 }
